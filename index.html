@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pi Network 钱包 - 多资产支持 (本地模式)</title>
+<style>
+* { box-sizing: border-box; }
+body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+.container { max-width: 800px; width: 100%; background: #fff; padding: 20px; margin: 20px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); border-radius: 15px; position: relative; }
+h1, h2, h3 { text-align: center; color: #333; }
+label { font-weight: bold; color: #555; display: block; margin-bottom: 5px; }
+input[type="text"], input[type="number"], textarea, select { width: 100%; padding: 12px; margin: 8px 0 16px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; transition: border-color 0.3s; }
+input:focus, textarea:focus, select:focus { border-color: #6a1b9a; outline: none; }
+button { padding: 12px; background: linear-gradient(135deg, #6a1b9a, #8e24aa); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; transition: transform 0.2s, box-shadow 0.2s; }
+button:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(106, 27, 154, 0.4); }
+button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.disabled-btn { opacity: 0.5; cursor: not-allowed; background: #ccc !important; }
+.message { text-align: center; margin: 20px 0; padding: 15px; border-radius: 8px; font-size: 1.1em; }
+.success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+.error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+.log { margin-top: 20px; padding: 15px; background-color: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; max-height: 400px; overflow-y: auto; }
+.wallet-info { text-align: left; }
+.balance { font-size: 2em; margin: 20px 0; text-align: center; color: #28a745; font-weight: bold; }
+.transaction { display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding: 12px 0; align-items: center; }
+.transaction:last-child { border-bottom: none; }
+.transaction p { margin: 0; }
+.history, .migrations { margin-top: 20px; }
+.tab { display: inline-block; padding: 12px 24px; cursor: pointer; border-radius: 8px 8px 0 0; margin-right: 5px; }
+.tab.active { font-weight: bold; background-color: #6a1b9a; color: white; }
+#loading { display: none; font-size: 1.5em; color: #555; text-align: center; margin: 20px 0; position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); }
+.short-address { cursor: pointer; text-decoration: underline; color: #007bff; }
+#qrcode-container { display: none; margin: 20px 0; text-align: center; }
+.assets-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin: 20px 0; }
+.asset-card { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 15px; border-radius: 10px; text-align: center; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); position: relative; }
+.asset-card.native { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+.asset-card.lp { background: linear-gradient(135deg, #28a745, #20c997); }
+.asset-card .asset-name { font-size: 1.2em; font-weight: bold; margin-bottom: 5px; }
+.asset-card .asset-balance { font-size: 1.4em; font-weight: bold; }
+.asset-card .asset-issuer { font-size: 0.8em; opacity: 0.8; margin-top: 5px; word-break: break-all; }
+.asset-card .asset-actions { margin-top: 10px; display: flex; gap: 5px; }
+.asset-card .asset-actions button { flex: 1; padding: 6px 10px; font-size: 0.8em; }
+.delete-btn { background: linear-gradient(135deg, #e74c3c, #c0392b) !important; }
+.reverse-swap-btn { background: linear-gradient(135deg, #ff8c00, #ff4500) !important; }
+.zero-balance { opacity: 0.7; filter: grayscale(0.3); }
+.wallet-header { background: linear-gradient(135deg, #6a1b9a, #8e24aa); color: white; padding: 20px; text-align: center; border-radius: 12px 12px 0 0; margin-bottom: 20px; position: relative; }
+.wallet-header .title { font-size: 24px; font-weight: bold; margin-bottom: 10px; }
+.wallet-actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 20px; }
+.wallet-actions button { margin: 0; width: 100%; }
+.modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); display: none; justify-content: center; align-items: center; z-index: 1000; }
+.modal-content { background-color: #fff; padding: 25px; width: 90%; max-width: 500px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); max-height: 90vh; overflow-y: auto; }
+.modal-content h2 { margin-top: 0; color: #6a1b9a; }
+.modal-buttons { display: flex; justify-content: space-between; margin-top: 20px; gap: 10px; }
+.modal-buttons button { flex: 1; margin: 0; }
+#confirm-transfer-btn { background: linear-gradient(135deg, #28a745, #20c997); }
+#cancel-transfer-btn { background: linear-gradient(135deg, #6c757d, #adb5bd); }
+.form-note { font-size: 0.9em; color: #666; margin-top: -10px; margin-bottom: 15px; }
+.form-note.warning { color: #e74c3c; font-weight: bold; }
+.transaction-status { display: inline-block; padding: 4px 8px; border-radius: 12px; font-size: 0.8em; font-weight: bold; }
+.status-incoming { background-color: #d4edda; color: #155724; }
+.status-outgoing { background-color: #f8d7da; color: #721c24; }
+.status-trust { background-color: #d1ecf1; color: #0c5460; }
+.status-lp-deposit { background-color: #d4edda; color: #155724; }
+.status-lp-withdraw { background-color: #f8d7da; color: #721c24; }
+@media (max-width: 768px) { .container { margin: 10px; padding: 15px; } .assets-grid { grid-template-columns: 1fr; } .wallet-actions { grid-template-columns: 1fr; } .modal-content { width: 95%; padding: 20px; } }
+.copy-btn { padding: 2px 6px; font-size: 0.7em; margin-left: 5px; }
+.network-status { position: absolute; top: 10px; right: 10px; padding: 5px 10px; border-radius: 5px; font-size: 0.8em; font-weight: bold; }
+.online { background: #d4edda; color: #155724; }
+.offline { background: #f8d7da; color: #721c24; }
+.network-select { background: linear-gradient(135deg, #28a745, #20c997); }
+.network-select.warning { background: linear-gradient(135deg, #dc3545, #c82333); }
+#logout-btn { position: absolute; top: 10px; left: 10px; padding: 5px 10px; font-size: 0.8em; background: linear-gradient(135deg, #dc3545, #c82333); }
+</style>
+<script src="libs/deps.min.js"></script>
+<script src="qrcode.min.js"></script>
+<script src="stellar-sdk.min.js"></script>
+</head>
+<body>
+<div class="container">
+  <h1>🌌 Pi Network 多资产钱包 (本地模式)</h1>
+  <form id="login-form">
+    <h2>登录钱包</h2>
+    <label for="network-select">🌐 选择网络</label>
+    <select id="network-select">
+      <option value="testnet">测试网 (推荐)</option>
+      <option value="mainnet">主网 (风险自负)</option>
+    </select>
+    <div class="form-note warning">⚠️ 主网使用可能有风险，请确保使用新创建的测试钱包。测试网更安全。</div>
+    <label for="mnemonic">助记词</label>
+    <textarea id="mnemonic" placeholder="请输入您的24个单词助记词" rows="3"></textarea>
+    <button type="submit">🔑 登录钱包</button>
+    <button type="button" id="create-wallet-btn" style="background: linear-gradient(135deg, #28a745, #20c997); margin-top: 10px;" data-i18n="create_wallet">🆕 创建新钱包</button>
+    <button type="button" id="clear-cache-btn" style="background: linear-gradient(135deg, #6c757d, #adb5bd); margin-top: 10px;">🗑️ 清除缓存</button>
+  </form>
+  <div id="wallet-info" style="display: none;">
+    <div class="wallet-header">
+      <div class="title">我的钱包</div>
+      <div id="network-status" class="network-status online">🟢 在线</div>
+      <button id="logout-btn">🚪 注销</button>
+      <p id="public-key"></p>
+    </div>
+    <button id="show-qrcode-btn">📱 显示收款二维码</button>
+    <div id="qrcode-container">
+      <div id="qrcode"></div>
+    </div>
+    <h3>📊 资产列表</h3>
+    <div id="assets-container" class="assets-grid"></div>
+    <div class="wallet-actions">
+      <button id="show-transfer-modal-btn">💸 转账</button>
+      <button id="create-asset-btn">🆕 创建资产</button>
+      <button id="trust-asset-btn">🤝 信任资产</button>
+      <button id="create-lp-btn">💧 创建流动池</button>
+      <button id="refresh-assets-btn">🔄 刷新资产</button>
+      <button id="export-mnemonic-btn">📤 导出助记词</button>
+    </div>
+    <div class="wallet-history">
+      <div class="tabs">
+        <button class="active tab" data-tab="history">📜 交易历史</button>
+        <button class="tab" data-tab="assets">💎 资产管理</button>
+        <button class="tab" data-tab="dex">🔄 DEX 兑换</button>
+      </div>
+      <div id="history" class="history">
+        <h3>交易记录 <button id="refresh-btn">🔄 刷新</button><button id="prev-history">上一页</button><button id="next-history">下一页</button></h3>
+        <div id="transaction-log" class="log"></div>
+      </div>
+      <div id="assets" class="migrations" style="display: none;">
+        <h3>我的资产</h3>
+        <div id="assets-details" class="log"></div>
+      </div>
+      <div id="dex" class="migrations" style="display: none;">
+        <h3>DEX 资产列表 <button id="add-dex-asset-btn">+ 添加DEX资产</button></h3>
+        <div id="dex-assets" class="assets-grid"></div>
+      </div>
+      <div id="market" class="migrations" style="display: none;">
+        <h3>市场 - 已发布资产</h3>
+        <p>以下是已发布的资产列表（由管理员添加）。点击链接查看详情。</p>
+        <div class="assets-grid">
+          <div class="asset-card">
+            <div class="asset-name">示例资产1: TOKENA</div>
+            <div class="asset-issuer">发行者: GABC...DEF</div>
+            <div class="asset-actions">
+              <a href="https://example.com/asset/tokena" target="_blank"><button>查看详情</button></a>
+              <button onclick="trustMarketAsset('TOKENA', 'GABCDEF...')">信任</button>
+            </div>
+          </div>
+          <div class="asset-card">
+            <div class="asset-name">示例资产2: TOKENB</div>
+            <div class="asset-issuer">发行者: GXYZ...ABC</div>
+            <div class="asset-actions">
+              <a href="https://example.com/asset/tokenb" target="_blank"><button>查看详情</button></a>
+              <button onclick="trustMarketAsset('TOKENB', 'GXYZABC...')">信任</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="message" class="message"></div>
+  <div id="loading">⏳ 加载中...</div>
+</div>
+<div id="transfer-modal" class="modal">
+  <div class="modal-content">
+    <h2>💸 转账</h2>
+    <label for="asset-select">选择转账资产</label>
+    <select id="asset-select"><option value="native">Pi (原生资产)</option></select>
+    <label for="modal-des_addr">🎯 目标地址</label>
+    <input type="text" id="modal-des_addr" placeholder="输入接收方地址" />
+    <label for="modal-amount">💰 转账金额</label>
+    <input type="number" id="modal-amount" placeholder="输入金额" step="0.0000001" min="0" />
+    <label for="modal-memo">📝 备注 (可选)</label>
+    <input type="text" id="modal-memo" placeholder="转账说明" />
+    <div class="modal-buttons">
+      <button id="confirm-transfer-btn">✅ 确认转账</button>
+      <button id="cancel-transfer-btn">❌ 取消</button>
+    </div>
+  </div>
+</div>
+<div id="create-modal" class="modal">
+  <div class="modal-content">
+    <h2>🆕 创建资产</h2>
+    <label for="create-asset-code">资产代码 (1-12字符，自动转为大写)</label>
+    <input type="text" id="create-asset-code" placeholder="例如: MYTOKEN" maxlength="12" />
+    <label for="create-initial-supply">初始发行量</label>
+    <input type="number" id="create-initial-supply" placeholder="1000000" step="0.0000001" min="0" />
+    <label for="create-destination">🎯 接收地址 (可选)</label>
+    <input type="text" id="create-destination" placeholder="留空则发送给自己" />
+    <div class="form-note">💡 提示：如果发送给其他地址，请确保对方已信任该资产</div>
+    <div class="form-note warning">⚠️ 重要：简化创建流程，只执行基本支付操作</div>
+    <div class="modal-buttons">
+      <button id="confirm-create-btn">✅ 创建资产</button>
+      <button id="cancel-create-btn">❌ 取消</button>
+    </div>
+  </div>
+</div>
+<div id="trust-modal" class="modal">
+  <div class="modal-content">
+    <h2>🤝 信任资产</h2>
+    <label for="trust-asset-code">资产代码</label>
+    <input type="text" id="trust-asset-code" placeholder="例如: USD" />
+    <label for="trust-asset-issuer">发行者地址</label>
+    <input type="text" id="trust-asset-issuer" placeholder="发行者公钥" />
+    <label for="trust-limit">信任限额 (可选，默认无限)</label>
+    <input type="text" id="trust-limit" placeholder="例如: 1000" />
+    <div class="form-note">💡 提示：信任资产后才能接收该资产的转账</div>
+    <div class="modal-buttons">
+      <button id="confirm-trust-btn">✅ 信任资产</button>
+      <button id="cancel-trust-btn">❌ 取消</button>
+    </div>
+  </div>
+</div>
+<div id="lp-modal" class="modal">
+  <div class="modal-content">
+    <h2>💧 创建流动池</h2>
+    <p>资产 A: Pi (原生) | 资产 B: 自定义资产</p>
+    <label for="lp-asset-b-code">资产 B 代码</label>
+    <input type="text" id="lp-asset-b-code" placeholder="例如: BNB" maxlength="12" />
+    <label for="lp-asset-b-issuer">资产 B 发行者地址</label>
+    <input type="text" id="lp-asset-b-issuer" placeholder="发行者公钥" />
+    <label for="lp-amount-a">存入 Pi 数量</label>
+    <input type="number" id="lp-amount-a" placeholder="10" step="0.0000001" min="0" />
+    <label for="lp-amount-b">存入 资产 B 数量</label>
+    <input type="number" id="lp-amount-b" placeholder="10" step="0.0000001" min="0" />
+    <label for="lp-pool-fee">池子手续费 (bps, 默认30=0.3%)</label>
+    <select id="lp-pool-fee">
+      <option value="30">0.3%</option>
+      <option value="50">0.5%</option>
+      <option value="100">1.0%</option>
+      <option value="500">5.0%</option>
+    </select>
+    <div class="form-note">💡 提示：确保已信任资产 B，并有足够余额</div>
+    <div class="form-note warning">⚠️ 注意：创建池子会自动创建 LP 份额信任线</div>
+    <div class="modal-buttons">
+      <button id="confirm-lp-btn">✅ 创建流动池</button>
+      <button id="cancel-lp-btn">❌ 取消</button>
+    </div>
+  </div>
+</div>
+<div id="delete-modal" class="modal">
+  <div class="modal-content">
+    <h2>🗑️ 删除资产</h2>
+    <p id="delete-asset-info">您确定要删除这个资产吗？</p>
+    <div class="form-note warning">⚠️ 注意：删除资产需要先将余额转出为0。此操作不可逆！</div>
+    <div class="modal-buttons">
+      <button id="confirm-delete-btn">✅ 确认删除</button>
+      <button id="cancel-delete-btn">❌ 取消</button>
+    </div>
+  </div>
+</div>
+<div id="export-modal" class="modal">
+  <div class="modal-content">
+    <h2>📤 导出助记词</h2>
+    <p class="form-note warning">⚠️ 警告：请勿将助记词分享给任何人！丢失助记词将导致资产永久丢失。</p>
+    <textarea id="export-mnemonic-text" rows="4" readonly></textarea>
+    <div class="modal-buttons">
+      <button id="copy-mnemonic-btn">📋 复制</button>
+      <button id="close-export-btn">❌ 关闭</button>
+    </div>
+  </div>
+</div>
+<div id="swap-modal" class="modal">
+  <div class="modal-content">
+    <h2>🔄 DEX 兑换</h2>
+    <p>从 <span id="swap-source-asset">Pi</span> 兑换到 <span id="swap-target-asset"></span></p>
+    <label for="swap-source-amount">输入 <span id="swap-source-asset-label">Pi</span> 数量</label>
+    <input type="number" id="swap-source-amount" placeholder="输入数量" step="0.0000001" min="0" />
+    <label for="slippage-select">容忍度 (%)</label>
+    <select id="slippage-select">
+      <option value="1">1%</option>
+      <option value="5">5%</option>
+      <option value="10">10%</option>
+      <option value="25">25%</option>
+      <option value="50">50%</option>
+      <option value="75">75%</option>
+      <option value="90">90%</option>
+    </select>
+    <p>预计接收: <span id="swap-estimate-amount">0</span></p>
+    <div class="form-note">💡 提示：滑点设置越高，在流动性不足时交易成功率越高，但可能损失更多价值</div>
+    <div class="modal-buttons">
+      <button id="get-quote-btn">📊 获取报价</button>
+      <button id="confirm-swap-btn">✅ 确认兑换</button>
+      <button id="cancel-swap-btn">❌ 取消</button>
+    </div>
+  </div>
+</div>
+<div id="disclaimer-modal" class="modal" style="display: flex;">
+  <div class="modal-content">
+    <h2>⚠️ 警告免责说明</h2>
+    <p style="line-height: 1.5; margin-bottom: 20px;">开源测试版本，绝不允许使用任何关联过Pi主网的钱包，设置过Piapp主网清单钱包禁止使用，否则出现被盗后果自负。<br><br><strong>只允许使用新创建的测试网钱包。</strong><br><br>同意以上内容可以继续体验。不同意退出。</p>
+    <div class="modal-buttons">
+      <button id="agree-btn" style="background: linear-gradient(135deg, #28a745, #20c997);">✅ 同意并继续</button>
+      <button id="disagree-btn" style="background: linear-gradient(135deg, #dc3545, #c82333);">❌ 不同意并退出</button>
+    </div>
+  </div>
+</div>
+<script>
+let HORIZON_URL, NETWORK_PASSPHRASE, server, mnemonic, publicKey, keypair, currentBalances = [], currentAssets = [], assetToDelete = null, swapTarget = { code: '', issuer: '' }, swapSource = { code: 'native', issuer: '' }, isReverseSwap = false, historyCollection = null, isOfflineMode = false;
+
+function setNetwork(isTestnet) {
+  if (isTestnet) { HORIZON_URL = "https://api.testnet.minepi.com"; NETWORK_PASSPHRASE = "Pi Testnet"; } else { HORIZON_URL = "https://api.mainnet.minepi.com"; NETWORK_PASSPHRASE = "Pi Network"; }
+  server = new StellarSdk.Server(HORIZON_URL);
+}
+
+function toggleLoading(show) { document.getElementById("loading").style.display = show ? "block" : "none"; }
+
+function showMessage(message, type = 'info') {
+  const messageDiv = document.getElementById("message");
+  messageDiv.textContent = message; messageDiv.className = `message ${type}`; messageDiv.style.display = 'block';
+  setTimeout(() => { messageDiv.style.display = 'none'; }, 5000);
+}
+
+function copyToClipboard(text) {
+  if (navigator.clipboard) { navigator.clipboard.writeText(text).then(() => showMessage("已复制到剪贴板", 'success')).catch(fallbackCopy(text)); } else { fallbackCopy(text); }
+}
+
+function fallbackCopy(text) {
+  const textArea = document.createElement("textarea"); textArea.value = text; textArea.style.position = "fixed"; document.body.appendChild(textArea); textArea.focus(); textArea.select();
+  try { const successful = document.execCommand('copy'); showMessage(successful ? "已复制到剪贴板" : "复制失败，请手动复制: " + text, successful ? 'success' : 'error'); } catch (err) { showMessage("复制失败，请手动复制: " + text, 'error'); }
+  document.body.removeChild(textArea);
+}
+
+function updateNetworkStatus(online) {
+  const statusEl = document.getElementById("network-status");
+  if (online) { statusEl.textContent = '🟢 在线'; statusEl.className = 'network-status online'; isOfflineMode = false; } else { statusEl.textContent = '🔴 离线'; statusEl.className = 'network-status offline'; isOfflineMode = true; }
+}
+
+async function checkNetwork(autoRefresh = false) {
+  if (!navigator.onLine) { updateNetworkStatus(false); if (autoRefresh && keypair) loadCachedAssets(); return false; }
+  try { await fetch(HORIZON_URL + '/info', { method: 'HEAD', mode: 'no-cors' }); updateNetworkStatus(true); if (autoRefresh && keypair) await refreshAccountData(); return true; } catch (e) { updateNetworkStatus(false); if (autoRefresh && keypair) loadCachedAssets(); return false; }
+}
+
+async function generateKeypairFromMnemonic(phrase) {
+  if (!bip39.validateMnemonic(phrase)) throw new Error("无效的助记词");
+  const seed = bip39.mnemonicToSeedSync(phrase); const derived = ed25519.derivePath("m/44'/314159'/0'", seed); return StellarSdk.Keypair.fromRawEd25519Seed(derived.key);
+}
+
+async function loadAccountSafely(pubKey) {
+  if (!navigator.onLine) throw new Error("离线模式：无法加载账户数据");
+  try { const result = await server.loadAccount(pubKey); updateNetworkStatus(true); return result; } catch (e) {
+    if (e.name === 'NotFoundError') { updateNetworkStatus(true); throw new Error("账户不存在（可能是新钱包）"); } else { updateNetworkStatus(false); throw new Error("网络连接失败，请检查网络连接"); }
+  }
+}
+
+async function loadKeypairAndAccount(phrase) {
+  if (!bip39.validateMnemonic(phrase)) throw new Error("无效的助记词");
+  const seed = bip39.mnemonicToSeedSync(phrase); const derived = ed25519.derivePath("m/44'/314159'/0'", seed); const kp = StellarSdk.Keypair.fromRawEd25519Seed(derived.key);
+  try { const account = await loadAccountSafely(kp.publicKey()); return { keypair: kp, account }; } catch (e) { if (e.message.includes("账户不存在") || e.message.includes("网络连接失败") || e.message.includes("离线模式")) return { keypair: kp, account: null }; throw e; }
+}
+
+async function processTransactions(transactions, public_key) {
+  const transaction_records = [];
+  for (const tx of transactions.records) {
+    try {
+      const operations = await server.operations().forTransaction(tx.id).call();
+      for (const op of operations.records) {
+        const record = { id: tx.id, created_at: tx.created_at, memo: tx.memo || "", successful: tx.successful !== false };
+        if (op.type === "payment") {
+          record.type = "payment"; record.amount = op.amount; record.asset_type = op.asset_type; record.asset_code = op.asset_code || ""; record.asset_issuer = op.asset_issuer || ""; record.from = op.from || ""; record.to = op.to || "";
+          if (record.from === public_key) { record.direction = "outgoing"; record.counterparty = record.to; } else { record.direction = "incoming"; record.counterparty = record.from; }
+        } else if (op.type === "change_trust") { record.type = "change_trust"; record.asset_code = op.asset_code || ""; record.asset_issuer = op.asset_issuer || ""; record.limit = op.limit === "922337203685.4775807" ? "unlimited" : op.limit; record.direction = "trust"; }
+        else if (op.type === "create_account") { record.type = "create_account"; record.funder = op.funder || ""; record.account = op.account || ""; record.starting_balance = op.starting_balance || ""; }
+        else if (op.type === "path_payment_strict_send") { record.type = "path_payment_strict_send"; record.source_amount = op.source_amount || ""; record.source_asset_code = op.source_asset_code || ""; record.source_asset_issuer = op.source_asset_issuer || ""; record.amount = op.amount || ""; record.asset_code = op.asset_code || ""; record.asset_issuer = op.asset_issuer || ""; record.direction = "dex_swap"; }
+        else if (op.type === "liquidity_pool_deposit") { record.type = "liquidity_pool_deposit"; record.pool_id = op.liquidity_pool_id || ""; record.shares = op.shares || ""; record.direction = "lp_deposit"; }
+        else if (op.type === "liquidity_pool_withdraw") { record.type = "liquidity_pool_withdraw"; record.pool_id = op.liquidity_pool_id || ""; record.shares = op.shares || ""; record.direction = "lp_withdraw"; }
+        if (record.type) transaction_records.push(record);
+      }
+    } catch (e) { console.error("处理交易错误:", e); }
+  }
+  return transaction_records;
+}
+
+function getAccountAllAssets(account_data, public_key) {
+  const assets = [];
+  if (!account_data || !account_data.balances) return assets;
+  for (const balance of account_data.balances) {
+    const asset_info = { balance: balance.balance, asset_type: balance.asset_type, limit: balance.limit || "0", buying_liabilities: balance.buying_liabilities || "0", selling_liabilities: balance.selling_liabilities || "0" };
+    if (balance.asset_type === "native") { asset_info.asset_code = "Pi"; asset_info.asset_issuer = "native"; asset_info.asset_name = "Stellar Lumens"; asset_info.is_native = true; asset_info.is_lp = false; }
+    else if (balance.asset_type === "credit_alphanum4" || balance.asset_type === "credit_alphanum12") { asset_info.asset_code = balance.asset_code; asset_info.asset_issuer = balance.asset_issuer; asset_info.asset_name = `${balance.asset_code} Token`; asset_info.is_native = false; asset_info.is_lp = false; }
+    else if (balance.asset_type === "liquidity_pool_shares") {
+      const lp_id = balance.liquidity_pool_id || "";
+      try {
+        const lp_data = server.liquidity_pools().liquidity_pool(lp_id).call();
+        const reserves = lp_data.reserves;
+        const asset_a = reserves[0]?.asset || 'Unknown';
+        const asset_b = reserves[1]?.asset || 'Unknown';
+        asset_info.asset_code = "LP"; asset_info.asset_issuer = "LP"; asset_info.asset_name = `LP: ${asset_a.split(':')[0]}-${asset_b.split(':')[0]}`; asset_info.is_native = false; asset_info.is_lp = true; asset_info.pool_id = lp_id; asset_info.asset_a = asset_a; asset_info.asset_b = asset_b;
+      } catch (e) { asset_info.asset_code = "LP"; asset_info.asset_issuer = "LP"; asset_info.asset_name = `Liquidity Pool (${lp_id.substring(0, 8)}...)`; asset_info.is_native = false; asset_info.is_lp = true; asset_info.pool_id = lp_id; }
+    } else { asset_info.asset_code = balance.asset_code || "Unknown"; asset_info.asset_issuer = balance.asset_issuer || "Unknown"; asset_info.asset_name = "Unknown Asset"; asset_info.is_native = false; asset_info.is_lp = false; }
+    assets.push(asset_info);
+  }
+  return assets;
+}
+
+function saveAssetsToCache(assets) { localStorage.setItem('cachedAssets', JSON.stringify(assets)); }
+
+function loadCachedAssets() {
+  const cached = localStorage.getItem('cachedAssets');
+  if (cached) {
+    try { currentAssets = JSON.parse(cached); displayAssets(currentAssets); displayDexAssets(currentAssets); showMessage("已加载缓存资产数据", 'info'); } catch (e) { console.error("加载缓存资产失败:", e); displayNoAssets(); }
+  } else { displayNoAssets(); }
+}
+
+function displayNoAssets() {
+  const container = document.getElementById("assets-container"), detailsContainer = document.getElementById("assets-details"), dexContainer = document.getElementById("dex-assets");
+  if (container) container.innerHTML = '<p style="text-align: center; color: #666; grid-column: 1 / -1;">暂无资产</p>';
+  if (detailsContainer) detailsContainer.innerHTML = '<p style="text-align: center; color: #666;">暂无资产</p>';
+  if (dexContainer) dexContainer.innerHTML = '<p style="text-align: center; color: #666; grid-column: 1 / -1;">暂无DEX资产，请添加信任资产</p>';
+}
+
+function displayAssets(assets) {
+  const container = document.getElementById("assets-container"), detailsContainer = document.getElementById("assets-details");
+  container.innerHTML = ''; detailsContainer.innerHTML = '';
+  if (!assets || assets.length === 0) { container.innerHTML = '<p style="text-align: center; color: #666; grid-column: 1 / -1;">暂无资产</p>'; detailsContainer.innerHTML = '<p style="text-align: center; color: #666;">暂无资产</p>'; return; }
+  assets.forEach(asset => {
+    if (!asset) return;
+    const isZeroBalance = parseFloat(asset.balance) === 0; const cardClass = asset.is_native ? 'native' : (asset.is_lp ? 'lp' : '');
+    const assetCard = document.createElement("div"); assetCard.className = `asset-card ${cardClass} ${isZeroBalance ? 'zero-balance' : ''}`;
+    let actionsHtml = '';
+    if (!asset.is_native && !asset.is_lp) { actionsHtml = `<div class="asset-actions"><button onclick="transferAsset('${asset.asset_code}', '${asset.asset_issuer}')">转账</button><button class="reverse-swap-btn" onclick="showReverseSwapModal('${asset.asset_code}', '${asset.asset_issuer}')">兑换为Pi</button><button class="delete-btn" onclick="showDeleteModal('${asset.asset_code}', '${asset.asset_issuer}', ${asset.balance})">删除</button></div>`; }
+    else if (asset.is_lp) { actionsHtml = `<div class="asset-actions"><button class="delete-btn" onclick="showDeleteModal('${asset.asset_code}', '${asset.asset_issuer}', ${asset.balance})" disabled>移除LP</button></div>`; } else { actionsHtml = `<div class="asset-actions"><button onclick="transferAsset('${asset.asset_code}', '${asset.asset_issuer}')">转账</button></div>`; }
+    let assetName = asset.asset_code || '未知资产'; if (asset.is_lp) assetName = asset.asset_name || 'LP';
+    let lpIdHtml = ''; if (asset.is_lp) { const shortId = (asset.pool_id || '未知').substring(0, 8) + '...'; lpIdHtml = `<div class="asset-issuer">池子 ID: ${shortId}<button class="copy-btn" onclick="copyToClipboard('${asset.pool_id}')">复制</button></div>`; } else if (!asset.is_native) { lpIdHtml = `<div class="asset-issuer">发行者: ${(asset.asset_issuer || '').substring(0, 8)}...</div>`; }
+    assetCard.innerHTML = `<div class="asset-name">${assetName}</div><div class="asset-balance">${parseFloat(asset.balance || 0).toLocaleString()}</div>${isZeroBalance ? '<div style="font-size: 0.7em; opacity: 0.8;">余额为0</div>' : ''}${lpIdHtml}${actionsHtml}`; container.appendChild(assetCard);
+    const assetDetail = document.createElement("div"); assetDetail.className = "transaction"; let detailActions = '', detailLpId = '', detailAssetName = asset.asset_code || '未知资产';
+    if (asset.is_lp) { detailAssetName = asset.asset_name || 'LP'; const shortId = (asset.pool_id || '未知').substring(0, 8) + '...'; detailLpId = `<br><small>池子 ID: ${shortId} <button class="copy-btn" onclick="copyToClipboard('${asset.pool_id}')">复制</button></small>`; } else if (!asset.is_native) { detailLpId = `<br><small>发行者: ${asset.asset_issuer || '未知'}</small>`; }
+    if (!asset.is_native && !asset.is_lp) { detailActions = `<div style="margin-top: 5px;"><button onclick="transferAsset('${asset.asset_code}', '${asset.asset_issuer}')" style="padding: 5px 10px; margin-right: 5px;">转账</button><button class="reverse-swap-btn" onclick="showReverseSwapModal('${asset.asset_code}', '${asset.asset_issuer}')" style="padding: 5px 10px; margin-right: 5px;">兑换为Pi</button><button class="delete-btn" onclick="showDeleteModal('${asset.asset_code}', '${asset.asset_issuer}', ${asset.balance})" style="padding: 5px 10px;">删除</button></div>`; }
+    else if (asset.is_lp) { detailActions = `<div style="margin-top: 5px;"><button class="delete-btn" style="padding: 5px 10px;" disabled>移除LP</button></div>`; } else { detailActions = `<div style="margin-top: 5px;"><button onclick="transferAsset('${asset.asset_code}', '${asset.asset_issuer}')" style="padding: 5px 10px;">转账</button></div>`; }
+    assetDetail.innerHTML = `<div><strong>${detailAssetName}</strong>${isZeroBalance ? '<br><small style="color: #999;">余额为0</small>' : ''}${detailLpId}</div><div><div style="font-weight: bold; color: ${isZeroBalance ? '#999' : '#28a745'};">${asset.balance || 0}</div>${detailActions}</div>`; detailsContainer.appendChild(assetDetail);
+  });
+  saveAssetsToCache(assets);
+}
+
+function displayAssetsOffline() { loadCachedAssets(); }
+
+function displayDexAssets(assets) {
+  const container = document.getElementById("dex-assets");
+  if (!container) return; container.innerHTML = '';
+  if (!assets || assets.length === 0) { container.innerHTML = '<p style="text-align: center; color: #666; grid-column: 1 / -1;">暂无DEX资产，请添加信任资产</p>'; return; }
+  assets.forEach(asset => { if (!asset || asset.is_lp) return; const isZeroBalance = parseFloat(asset.balance) === 0; const assetCard = document.createElement("div"); assetCard.className = `asset-card ${asset.is_native ? 'native' : ''} ${isZeroBalance ? 'zero-balance' : ''}`; let actionsHtml = '';
+    if (asset.is_native) { actionsHtml = `<div class="asset-actions"><button onclick="showSwapModal('${asset.asset_code}', '${asset.asset_issuer}')">兑换其他资产</button></div>`; } else { actionsHtml = `<div class="asset-actions"><button onclick="showSwapModal('${asset.asset_code}', '${asset.asset_issuer}')">用Pi兑换</button><button class="reverse-swap-btn" onclick="showReverseSwapModal('${asset.asset_code}', '${asset.asset_issuer}')">兑换为Pi</button><button class="delete-btn" onclick="showDeleteModal('${asset.asset_code}', '${asset.asset_issuer}', ${asset.balance})">删除</button></div>`; }
+    assetCard.innerHTML = `<div class="asset-name">${asset.asset_code || '未知资产'}</div><div class="asset-balance">${parseFloat(asset.balance || 0).toLocaleString()}</div>${isZeroBalance ? '<div style="font-size: 0.7em; opacity: 0.8;">余额为0</div>' : ''}${!asset.is_native ? `<div class="asset-issuer">发行者: ${(asset.asset_issuer || '').substring(0, 8)}...</div>` : ''}${actionsHtml}`; container.appendChild(assetCard); });
+}
+
+function transferAsset(assetCode, assetIssuer) { if (isOfflineMode) { showMessage("⛔ 离线模式：无法转账，请连接网络", 'error'); return; } const select = document.getElementById("asset-select"); select.innerHTML = '<option value="native">Pi (原生资产)</option>'; const opt = document.createElement("option"); opt.value = `${assetCode}:${assetIssuer}`; opt.text = `${assetCode} (${(assetIssuer || '').substring(0, 8)}...)`; opt.selected = true; select.add(opt); document.getElementById("transfer-modal").style.display = "flex"; }
+
+function showDeleteModal(assetCode, assetIssuer, balance) { if (isOfflineMode) { showMessage("⛔ 离线模式：无法删除资产，请连接网络", 'error'); return; } assetToDelete = { assetCode, assetIssuer, balance }; document.getElementById("delete-asset-info").innerHTML = `确定要删除资产 <strong>${assetCode}</strong> 吗？<br> 当前余额: ${balance}`; document.getElementById("delete-modal").style.display = "flex"; }
+
+function showSwapModal(code, issuer) { if (isOfflineMode) { showMessage("⛔ 离线模式：无法兑换，请连接网络", 'error'); return; } isReverseSwap = false; swapTarget = { code, issuer }; swapSource = { code: 'native', issuer: '' }; document.getElementById("swap-source-asset").textContent = "Pi"; document.getElementById("swap-source-asset-label").textContent = "Pi"; document.getElementById("swap-target-asset").textContent = `${code} (${issuer.substring(0, 8)}...)`; document.getElementById("swap-source-amount").value = ''; document.getElementById("swap-estimate-amount").textContent = '0'; document.getElementById("slippage-select").value = '1'; document.getElementById("swap-modal").style.display = "flex"; }
+
+function showReverseSwapModal(code, issuer) { if (isOfflineMode) { showMessage("⛔ 离线模式：无法兑换，请连接网络", 'error'); return; } isReverseSwap = true; swapSource = { code, issuer }; swapTarget = { code: 'native', issuer: '' }; document.getElementById("swap-source-asset").textContent = `${code} (${issuer.substring(0, 8)}...)`; document.getElementById("swap-source-asset-label").textContent = code; document.getElementById("swap-target-asset").textContent = "Pi"; document.getElementById("swap-source-amount").value = ''; document.getElementById("swap-estimate-amount").textContent = '0'; document.getElementById("slippage-select").value = '1'; document.getElementById("swap-modal").style.display = "flex"; }
+
+function trustMarketAsset(code, issuer) { if (isOfflineMode) { showMessage("⛔ 离线模式：无法信任资产，请连接网络", 'error'); return; } document.getElementById("trust-asset-code").value = code; document.getElementById("trust-asset-issuer").value = issuer; document.getElementById("trust-modal").style.display = "flex"; }
+
+function createTransactionElement(tx) {
+  const txElem = document.createElement("div"); txElem.className = "transaction"; let statusClass = '', statusText = '', amountText = '', counterpartyText = '';
+  const safeSubstring = (str, start, end) => { if (!str) return '未知'; return str.substring(start, end) + '...'; };
+  if (tx.type === "payment") {
+    const asset = tx.asset_code ? `${tx.asset_code}` : 'Pi'; const shortFrom = safeSubstring(tx.from, 0, 6); const shortTo = safeSubstring(tx.to, 0, 6);
+    if (tx.direction === "incoming") { statusClass = 'status-incoming'; statusText = '收入'; amountText = `+${tx.amount} ${asset}`; counterpartyText = `来自: ${shortFrom}`; } else { statusClass = 'status-outgoing'; statusText = '支出'; amountText = `-${tx.amount} ${asset}`; counterpartyText = `发给: ${shortTo}`; }
+    txElem.innerHTML = `<div style="flex: 1;"><div style="display: flex; justify-content: space-between; align-items: center;"><span class="transaction-status ${statusClass}">${statusText}</span><strong style="color: ${tx.direction === 'incoming' ? '#28a745' : '#dc3545'}">${amountText}</strong></div><div style="font-size: 0.9em; color: #666; margin-top: 5px;">${counterpartyText}${tx.memo ? ` | 备注: ${tx.memo}` : ''}</div><div style="font-size: 0.8em; color: #999;">${new Date(tx.created_at).toLocaleString()}</div></div>`;
+  } else if (tx.type === "change_trust") {
+    const shortIssuer = safeSubstring(tx.asset_issuer, 0, 8);
+    txElem.innerHTML = `<div style="flex: 1;"><div style="display: flex; justify-content: space-between; align-items: center;"><span class="transaction-status status-trust">资产信任</span><strong>${tx.asset_code || '资产'}</strong></div><div style="font-size: 0.9em; color: #666;">发行者: ${shortIssuer}</div><div style="font-size: 0.8em; color: #999;">${new Date(tx.created_at).toLocaleString()}</div></div>`;
+  } else if (tx.type === "create_account") {
+    const shortAccount = safeSubstring(tx.account, 0, 8);
+    txElem.innerHTML = `<div style="flex: 1;"><div style="display: flex; justify-content: space-between; align-items: center;"><span class="transaction-status status-trust">创建账户</span><strong>${tx.starting_balance} Pi</strong></div><div style="font-size: 0.9em; color: #666;">账户: ${shortAccount}</div><div style="font-size: 0.8em; color: #999;">${new Date(tx.created_at).toLocaleString()}</div></div>`;
+  } else if (tx.type === "path_payment_strict_send") {
+    const sourceAsset = tx.source_asset_code ? `${tx.source_asset_code}` : 'Pi'; const destAsset = tx.asset_code ? `${tx.asset_code}` : 'Pi';
+    txElem.innerHTML = `<div style="flex: 1;"><div style="display: flex; justify-content: space-between; align-items: center;"><span class="transaction-status status-outgoing">DEX兑换</span><strong>${tx.source_amount} ${sourceAsset} -> ${tx.amount} ${destAsset}</strong></div><div style="font-size: 0.8em; color: #999;">${new Date(tx.created_at).toLocaleString()}</div></div>`;
+  } else if (tx.type === "liquidity_pool_deposit") {
+    txElem.innerHTML = `<div style="flex: 1;"><div style="display: flex; justify-content: space-between; align-items: center;"><span class="transaction-status status-lp-deposit">LP 存入</span><strong>池子: ${tx.pool_id || '未知'}</strong></div><div style="font-size: 0.9em; color: #666;">份额: ${tx.shares || '未知'}</div><div style="font-size: 0.8em; color: #999;">${new Date(tx.created_at).toLocaleString()}</div></div>`;
+  } else if (tx.type === "liquidity_pool_withdraw") {
+    txElem.innerHTML = `<div style="flex: 1;"><div style="display: flex; justify-content: space-between; align-items: center;"><span class="transaction-status status-lp-withdraw">LP 撤出</span><strong>池子: ${tx.pool_id || '未知'}</strong></div><div style="font-size: 0.9em; color: #666;">份额: ${tx.shares || '未知'}</div><div style="font-size: 0.8em; color: #999;">${new Date(tx.created_at).toLocaleString()}</div></div>`;
+  } else { txElem.innerHTML = `<div style="flex: 1;"><div style="display: flex; justify-content: space-between; align-items: center;"><span class="transaction-status">${tx.type}</span></div><div style="font-size: 0.8em; color: #999;">${new Date(tx.created_at).toLocaleString()}</div></div>`; }
+  return txElem;
+}
+
+async function refreshAccountData() {
+  if (!keypair) { showMessage("请先登录", 'error'); return; }
+  if (isOfflineMode) { loadCachedAssets(); showMessage("⛔ 离线模式：无法刷新数据，使用缓存", 'error'); return; }
+  toggleLoading(true);
+  try {
+    const account = await loadAccountSafely(publicKey);
+    currentBalances = account.balances; currentAssets = getAccountAllAssets(account, publicKey);
+    displayAssets(currentAssets); displayDexAssets(currentAssets);
+    historyCollection = await server.transactions().forAccount(publicKey).order("desc").limit(10).call();
+    const transaction_records = await processTransactions(historyCollection, publicKey);
+    const transactionLog = document.getElementById("transaction-log"); transactionLog.innerHTML = "";
+    if (transaction_records.length === 0) { transactionLog.innerHTML = '<p style="text-align: center; color: #666;">暂无交易记录</p>'; } else { transaction_records.forEach((tx) => { if (tx && tx.created_at) { const txElem = createTransactionElement(tx); transactionLog.appendChild(txElem); } }); }
+    document.getElementById("prev-history").disabled = !historyCollection.prev; document.getElementById("next-history").disabled = !historyCollection.next;
+    showMessage("账户数据已刷新", 'success');
+  } catch (e) {
+    if (e.message.includes("离线") || e.message.includes("网络连接失败") || e.message.includes("账户不存在")) { loadCachedAssets(); showMessage("⛔ 离线模式：资产数据暂不可用，使用缓存", 'error'); } else { showMessage(`刷新失败: ${e.message}`, 'error'); }
+  } finally { toggleLoading(false); }
+}
+
+async function autoLogin() {
+  const savedMnemonic = localStorage.getItem('mnemonic'), savedNetwork = localStorage.getItem('network');
+  if (!savedMnemonic) return false;
+  const networkSelect = document.getElementById("network-select"); networkSelect.value = savedNetwork || 'testnet'; const isTestnet = networkSelect.value === "testnet"; setNetwork(isTestnet); mnemonic = savedMnemonic;
+  toggleLoading(true);
+  try {
+    keypair = await generateKeypairFromMnemonic(mnemonic); publicKey = keypair.publicKey();
+    showMessage(`自动登录成功！当前网络: ${isTestnet ? '测试网' : '主网'}`, 'success');
+    document.getElementById("login-form").style.display = "none"; document.getElementById("wallet-info").style.display = "block"; document.getElementById("public-key").innerText = `地址: ${publicKey}`;
+    const qrcodeContainer = document.getElementById("qrcode"); qrcodeContainer.innerHTML = ''; new QRCode(qrcodeContainer, publicKey);
+    const { account } = await loadKeypairAndAccount(mnemonic);
+    if (account) { currentBalances = account.balances; currentAssets = getAccountAllAssets(account, publicKey); await refreshAccountData(); } else { loadCachedAssets(); showMessage("登录成功！这是一个新钱包或网络连接问题。网络恢复后可刷新资产。", 'info'); }
+    return true;
+  } catch (e) { showMessage(e.message, 'error'); localStorage.removeItem('mnemonic'); localStorage.removeItem('network'); document.getElementById("wallet-info").style.display = "none"; return false; } finally { toggleLoading(false); }
+}
+
+function logout() { localStorage.removeItem('mnemonic'); localStorage.removeItem('network'); localStorage.removeItem('cachedAssets'); mnemonic = null; keypair = null; publicKey = null; currentAssets = []; document.getElementById("wallet-info").style.display = "none"; document.getElementById("login-form").style.display = "block"; showMessage("已注销", 'info'); }
+
+function clearCache() { localStorage.removeItem('mnemonic'); localStorage.removeItem('network'); localStorage.removeItem('cachedAssets'); showMessage("缓存已清除", 'success'); document.getElementById("mnemonic").value = ''; }
+
+document.getElementById("login-form").addEventListener("submit", async function (event) { event.preventDefault(); const networkSelect = document.getElementById("network-select").value; const isTestnet = networkSelect === "testnet"; setNetwork(isTestnet); mnemonic = document.getElementById("mnemonic").value.trim(); document.getElementById("mnemonic").value = ""; if (!mnemonic) { showMessage("请输入助记词", 'error'); return; } localStorage.setItem('mnemonic', mnemonic); localStorage.setItem('network', networkSelect); await autoLogin(); });
+
+document.getElementById("clear-cache-btn").addEventListener("click", clearCache); document.getElementById("logout-btn").addEventListener("click", logout);
+
+document.getElementById("show-transfer-modal-btn").addEventListener("click", function () { if (isOfflineMode) { showMessage("⛔ 离线模式：无法转账，请连接网络", 'error'); return; } const select = document.getElementById("asset-select"); select.innerHTML = '<option value="native">Pi (原生资产)</option>'; currentAssets.forEach((asset) => { if (!asset.is_native && !asset.is_lp) { const opt = document.createElement("option"); opt.value = `${asset.asset_code}:${asset.asset_issuer}`; opt.text = `${asset.asset_code} (${(asset.asset_issuer || '').substring(0, 8)}...)`; select.add(opt); } }); document.getElementById("transfer-modal").style.display = "flex"; });
+
+document.getElementById("confirm-transfer-btn").addEventListener("click", async function () { if (isOfflineMode) { showMessage("⛔ 离线模式：无法转账，请连接网络", 'error'); return; } const selectedAsset = document.getElementById("asset-select").value, desAddr = document.getElementById("modal-des_addr").value.trim(), amount = document.getElementById("modal-amount").value, memo = document.getElementById("modal-memo").value; if (!desAddr) { showMessage("请输入目标地址", 'error'); return; } if (!amount || parseFloat(amount) <= 0) { showMessage("请输入有效的转账金额", 'error'); return; } let asset_code = '', asset_issuer = ''; if (selectedAsset !== "native") [asset_code, asset_issuer] = selectedAsset.split(":"); document.getElementById("transfer-modal").style.display = "none"; toggleLoading(true); try { const { keypair: kp, account } = await loadKeypairAndAccount(mnemonic); if (!account) { showMessage("账户不存在或网络连接失败", 'error'); return; } const asset = asset_code ? new StellarSdk.Asset(asset_code, asset_issuer) : StellarSdk.Asset.native(); const asset_display = asset.isNative() ? "Pi" : `${asset_code}:${asset_issuer.substring(0, 8)}...`; const transaction = new StellarSdk.TransactionBuilder(account, { fee: await server.fetchBaseFee(), networkPassphrase: NETWORK_PASSPHRASE }).addMemo(memo ? StellarSdk.Memo.text(memo) : StellarSdk.Memo.none()).addOperation(StellarSdk.Operation.payment({ destination: desAddr, asset: asset, amount: amount })).setTimeout(30).build(); transaction.sign(kp); const response = await server.submitTransaction(transaction); showMessage(`转账成功 - ${amount} ${asset_display}`, 'success'); document.getElementById("modal-des_addr").value = ''; document.getElementById("modal-amount").value = ''; document.getElementById("modal-memo").value = ''; setTimeout(refreshAccountData, 2000); } catch (e) { let error_msg = e.message; if (e.response?.data?.extras?.result_codes?.transaction === "tx_failed") { const op_result = e.response.data.extras.result_codes.operations[0]; if (op_result === "op_no_destination") error_msg = "目标账户不存在"; else if (op_result === "op_underfunded") error_msg = "余额不足"; else if (op_result === "op_no_trust") error_msg = "目标账户未信任该资产"; else if (op_result === "op_low_reserve") error_msg = "目标账户信任线已达上限"; else error_msg = `交易失败: ${error_msg}`; } showMessage(error_msg, 'error'); } finally { toggleLoading(false); } });
+document.getElementById("cancel-transfer-btn").addEventListener("click", function () { document.getElementById("transfer-modal").style.display = "none"; });
+
+document.getElementById("create-asset-btn").addEventListener("click", function () { if (isOfflineMode) { showMessage("⛔ 离线模式：无法创建资产，请连接网络", 'error'); return; } document.getElementById("create-asset-code").value = ''; document.getElementById("create-initial-supply").value = ''; document.getElementById("create-destination").value = ''; document.getElementById("create-modal").style.display = "flex"; });
+document.getElementById("confirm-create-btn").addEventListener("click", async function () { if (isOfflineMode) { showMessage("⛔ 离线模式：无法创建资产，请连接网络", 'error'); return; } const asset_code = document.getElementById("create-asset-code").value.trim().toUpperCase(), initial_supply = document.getElementById("create-initial-supply").value, destination = document.getElementById("create-destination").value.trim() || publicKey; if (!asset_code || asset_code.length < 1 || asset_code.length > 12) { showMessage("资产代码长度必须在1-12个字符之间", 'error'); return; } if (!initial_supply || parseFloat(initial_supply) <= 0) { showMessage("请输入有效的发行量", 'error'); return; } document.getElementById("create-modal").style.display = "none"; toggleLoading(true); try { const { keypair: kp, account } = await loadKeypairAndAccount(mnemonic); if (!account) { showMessage("账户不存在或网络连接失败", 'error'); return; } try { await server.loadAccount(destination); } catch (e) { if (e.name === 'NotFoundError') { showMessage(`目标账户 ${destination.substring(0,8)}... 不存在`, 'error'); return; } throw e; } const asset = new StellarSdk.Asset(asset_code, publicKey); const transaction = new StellarSdk.TransactionBuilder(account, { fee: await server.fetchBaseFee(), networkPassphrase: NETWORK_PASSPHRASE }).addOperation(StellarSdk.Operation.payment({ destination: destination, asset: asset, amount: initial_supply })).setTimeout(30).build(); transaction.sign(kp); const response = await server.submitTransaction(transaction); const target_info = destination === publicKey ? "自己" : `地址 ${destination.substring(0,8)}...`; showMessage(`资产 ${asset_code} 创建成功，已向${target_info}发行 ${initial_supply} 个代币`, 'success'); document.getElementById("create-asset-code").value = ''; document.getElementById("create-initial-supply").value = ''; document.getElementById("create-destination").value = ''; setTimeout(refreshAccountData, 2000); } catch (e) { let error_msg = e.message; if (e.response?.data?.extras?.result_codes?.operations?.[0] === "op_no_trust") { error_msg = "目标账户未信任该资产，请先让目标账户执行信任操作"; } else if (e.response?.data?.extras?.result_codes?.transaction === "tx_failed") { const op_result = e.response.data.extras.result_codes.operations[0]; if (op_result === "op_no_destination") error_msg = "目标账户不存在"; else if (op_result === "op_underfunded") error_msg = "余额不足"; else if (op_result === "op_no_trust") error_msg = "目标账户未信任该资产"; else if (op_result === "op_low_reserve") error_msg = "目标账户信任线已达上限"; else error_msg = `交易失败: ${error_msg}`; } showMessage(error_msg, 'error'); } finally { toggleLoading(false); } });
+document.getElementById("cancel-create-btn").addEventListener("click", function () { document.getElementById("create-modal").style.display = "none"; });
+
+document.getElementById("trust-asset-btn").addEventListener("click", function () { if (isOfflineMode) { showMessage("⛔ 离线模式：无法信任资产，请连接网络", 'error'); return; } document.getElementById("trust-modal").style.display = "flex"; });
+document.getElementById("add-dex-asset-btn").addEventListener("click", function () { if (isOfflineMode) { showMessage("⛔ 离线模式：无法添加DEX资产，请连接网络", 'error'); return; } document.getElementById("trust-modal").style.display = "flex"; });
+document.getElementById("confirm-trust-btn").addEventListener("click", async function () { if (isOfflineMode) { showMessage("⛔ 离线模式：无法信任资产，请连接网络", 'error'); return; } const asset_code = document.getElementById("trust-asset-code").value.trim(), asset_issuer = document.getElementById("trust-asset-issuer").value.trim(), limit = document.getElementById("trust-limit").value || "922337203685.4775807"; if (!asset_code || !asset_issuer) { showMessage("请输入资产代码和发行者地址", 'error'); return; } document.getElementById("trust-modal").style.display = "none"; toggleLoading(true); try { const { keypair: kp, account } = await loadKeypairAndAccount(mnemonic); if (!account) { showMessage("账户不存在或网络连接失败", 'error'); return; } const account_data = await server.loadAccount(publicKey); const already_trusted = account_data.balances.some(b => b.asset_type !== 'native' && b.asset_code === asset_code && b.asset_issuer === asset_issuer); if (already_trusted) { showMessage(`已经信任资产 ${asset_code}`, 'success'); document.getElementById("trust-asset-code").value = ''; document.getElementById("trust-asset-issuer").value = ''; document.getElementById("trust-limit").value = ''; setTimeout(refreshAccountData, 2000); return; } const asset = new StellarSdk.Asset(asset_code, asset_issuer); const transaction = new StellarSdk.TransactionBuilder(account, { fee: await server.fetchBaseFee(), networkPassphrase: NETWORK_PASSPHRASE }).addOperation(StellarSdk.Operation.changeTrust({ asset: asset, limit: limit })).setTimeout(30).build(); transaction.sign(kp); const response_tx = await server.submitTransaction(transaction); showMessage(`成功信任资产 ${asset_code}`, 'success'); document.getElementById("trust-asset-code").value = ''; document.getElementById("trust-asset-issuer").value = ''; document.getElementById("trust-limit").value = ''; setTimeout(refreshAccountData, 2000); } catch (e) { showMessage(`信任资产失败: ${e.message}`, 'error'); } finally { toggleLoading(false); } });
+document.getElementById("cancel-trust-btn").addEventListener("click", function () { document.getElementById("trust-modal").style.display = "none"; });
+
+document.getElementById("create-lp-btn").addEventListener("click", function () { if (isOfflineMode) { showMessage("⛔ 离线模式：无法创建流动池，请连接网络", 'error'); return; } document.getElementById("lp-asset-b-code").value = ''; document.getElementById("lp-asset-b-issuer").value = ''; document.getElementById("lp-amount-a").value = ''; document.getElementById("lp-amount-b").value = ''; document.getElementById("lp-pool-fee").value = '30'; document.getElementById("lp-modal").style.display = "flex"; });
+document.getElementById("confirm-lp-btn").addEventListener("click", async function () { if (isOfflineMode) { showMessage("⛔ 离线模式：无法创建流动池，请连接网络", 'error'); return; } const asset_b_code = document.getElementById("lp-asset-b-code").value.trim().toUpperCase(), asset_b_issuer = document.getElementById("lp-asset-b-issuer").value.trim(), amount_a = document.getElementById("lp-amount-a").value, amount_b = document.getElementById("lp-amount-b").value, pool_fee = parseInt(document.getElementById("lp-pool-fee").value); if (!asset_b_code || !asset_b_issuer) { showMessage("请输入资产 B 的代码和发行者地址", 'error'); return; } if (!amount_a || !amount_b || parseFloat(amount_a) <= 0 || parseFloat(amount_b) <= 0) { showMessage("请输入有效的存入数量", 'error'); return; } document.getElementById("lp-modal").style.display = "none"; toggleLoading(true); try { const { keypair: kp, account } = await loadKeypairAndAccount(mnemonic); if (!account) { showMessage("账户不存在或网络连接失败", 'error'); return; } const base_fee = await server.fetchBaseFee(); const asset_a = StellarSdk.Asset.native(); const asset_b = new StellarSdk.Asset(asset_b_code, asset_b_issuer); const lp_asset = new StellarSdk.LiquidityPoolAsset(asset_a, asset_b, pool_fee); const account_data = await server.loadAccount(publicKey); const trusted_b = account_data.balances.some(b => b.asset_code === asset_b_code && b.asset_issuer === asset_b_issuer); let current_account = account; if (!trusted_b) { const tx_trust = new StellarSdk.TransactionBuilder(current_account, { fee: base_fee, networkPassphrase: NETWORK_PASSPHRASE }).addOperation(StellarSdk.Operation.changeTrust({ asset: asset_b })).setTimeout(30).build(); tx_trust.sign(kp); await server.submitTransaction(tx_trust); current_account = await server.loadAccount(publicKey); } const transaction = new StellarSdk.TransactionBuilder(current_account, { fee: base_fee, networkPassphrase: NETWORK_PASSPHRASE }).addOperation(StellarSdk.Operation.changeTrust({ asset: lp_asset })).addOperation(StellarSdk.Operation.liquidityPoolDeposit({ liquidityPoolId: lp_asset.liquidityPoolId, maxAmountA: amount_a, maxAmountB: amount_b, minPrice: "0.0000001", maxPrice: "10000000" })).setTimeout(30).build(); transaction.sign(kp); const response = await server.submitTransaction(transaction); showMessage(`流动性池创建/存入成功! 存入 ${amount_a} Pi 和 ${amount_b} ${asset_b_code}`, 'success'); document.getElementById("lp-asset-b-code").value = ''; document.getElementById("lp-asset-b-issuer").value = ''; document.getElementById("lp-amount-a").value = ''; document.getElementById("lp-amount-b").value = ''; setTimeout(refreshAccountData, 2000); } catch (e) { let error_msg = e.message; if (e.response?.data?.extras?.result_codes?.operations) { const op_results = e.response.data.extras.result_codes.operations; if (op_results.some(r => r === "op_no_trust")) error_msg = "缺少信任线，请先信任资产 B"; else if (op_results.some(r => r === "op_underfunded")) error_msg = "余额不足"; } showMessage(error_msg, 'error'); } finally { toggleLoading(false); } });
+document.getElementById("cancel-lp-btn").addEventListener("click", function () { document.getElementById("lp-modal").style.display = "none"; });
+
+document.getElementById("confirm-delete-btn").addEventListener("click", async function () { if (isOfflineMode) { showMessage("⛔ 离线模式：无法删除资产，请连接网络", 'error'); return; } if (!assetToDelete) return; document.getElementById("delete-modal").style.display = "none"; toggleLoading(true); try { const { keypair: kp, account } = await loadKeypairAndAccount(mnemonic); if (!account) { showMessage("账户不存在或网络连接失败", 'error'); return; } const account_data = await server.loadAccount(publicKey); const asset_balance = account_data.balances.find(b => b.asset_code === assetToDelete.assetCode && b.asset_issuer === assetToDelete.assetIssuer); if (asset_balance && parseFloat(asset_balance.balance) > 0) { showMessage(`无法移除信任，资产余额不为0。请先将 ${asset_balance.balance} ${assetToDelete.assetCode} 转出后再尝试移除。`, 'error'); return; } const asset = new StellarSdk.Asset(assetToDelete.assetCode, assetToDelete.assetIssuer); const transaction = new StellarSdk.TransactionBuilder(account, { fee: await server.fetchBaseFee(), networkPassphrase: NETWORK_PASSPHRASE }).addOperation(StellarSdk.Operation.changeTrust({ asset: asset, limit: "0" })).setTimeout(30).build(); transaction.sign(kp); const response_tx = await server.submitTransaction(transaction); showMessage(`成功移除资产 ${assetToDelete.assetCode} 的信任`, 'success'); assetToDelete = null; setTimeout(refreshAccountData, 2000); } catch (e) { showMessage(`移除资产信任失败: ${e.message}`, 'error'); } finally { toggleLoading(false); } });
+document.getElementById("cancel-delete-btn").addEventListener("click", function () { document.getElementById("delete-modal").style.display = "none"; assetToDelete = null; });
+
+document.getElementById("get-quote-btn").addEventListener("click", async function () { if (isOfflineMode) { showMessage("⛔ 离线模式：无法获取报价，请连接网络", 'error'); return; } const sourceAmount = document.getElementById("swap-source-amount").value; if (!sourceAmount || parseFloat(sourceAmount) <= 0) { showMessage("请输入有效的数量", 'error'); return; } toggleLoading(true); try { let path_url; if (isReverseSwap) { path_url = `${HORIZON_URL}/paths/strict-send?source_asset_type=credit_alphanum12&source_asset_code=${swapSource.code}&source_asset_issuer=${swapSource.issuer}&source_amount=${sourceAmount}&destination_assets=native`; } else { path_url = `${HORIZON_URL}/paths/strict-send?source_asset_type=native&source_amount=${sourceAmount}&destination_assets=${swapTarget.code}%3A${swapTarget.issuer}`; } const resp = await fetch(path_url).then(r => r.json()); if (!resp._embedded || !resp._embedded.records || resp._embedded.records.length === 0) throw new Error("未找到可用兑换路径，可能流动性不足。"); const record = resp._embedded.records[0]; const targetAsset = isReverseSwap ? "Pi" : swapTarget.code; document.getElementById("swap-estimate-amount").textContent = `${record.destination_amount} ${targetAsset}`; } catch (e) { showMessage(e.message, 'error'); } finally { toggleLoading(false); } });
+
+document.getElementById("confirm-swap-btn").addEventListener("click", async function () { if (isOfflineMode) { showMessage("⛔ 离线模式：无法兑换，请连接网络", 'error'); return; } const sourceAmount = document.getElementById("swap-source-amount").value, slippage = document.getElementById("slippage-select").value; if (!sourceAmount || parseFloat(sourceAmount) <= 0) { showMessage("请输入有效的数量", 'error'); return; } document.getElementById("swap-modal").style.display = "none"; toggleLoading(true); try { const { keypair: kp, account } = await loadKeypairAndAccount(mnemonic); if (!account) { showMessage("账户不存在或网络连接失败", 'error'); return; } let path_url, dest_amount, path; if (isReverseSwap) { const source_asset = new StellarSdk.Asset(swapSource.code, swapSource.issuer); const dest_asset = StellarSdk.Asset.native(); path_url = `${HORIZON_URL}/paths/strict-send?source_asset_type=credit_alphanum12&source_asset_code=${swapSource.code}&source_asset_issuer=${swapSource.issuer}&source_amount=${sourceAmount}&destination_assets=native`; const resp = await fetch(path_url).then(r => r.json()); if (!resp._embedded || !resp._embedded.records.length) throw new Error("未找到可用兑换路径，可能流动性不足。"); const record = resp._embedded.records[0]; dest_amount = record.destination_amount; path = (record.path || []).map(p => p.asset_type === "native" ? StellarSdk.Asset.native() : new StellarSdk.Asset(p.asset_code, p.asset_issuer)); } else { const destination_asset = new StellarSdk.Asset(swapTarget.code, swapTarget.issuer); path_url = `${HORIZON_URL}/paths/strict-send?source_asset_type=native&source_amount=${sourceAmount}&destination_assets=${swapTarget.code}%3A${swapTarget.issuer}`; const resp = await fetch(path_url).then(r => r.json()); if (!resp._embedded || !resp._embedded.records.length) throw new Error("未找到可用兑换路径，可能流动性不足。"); const record = resp._embedded.records[0]; dest_amount = record.destination_amount; path = (record.path || []).map(p => p.asset_type === "native" ? StellarSdk.Asset.native() : new StellarSdk.Asset(p.asset_code, p.asset_issuer)); } const dest_min_value = parseFloat(dest_amount) * (1 - parseFloat(slippage) / 100); const dest_min_str = dest_min_value.toFixed(7); let send_asset, dest_asset; if (isReverseSwap) { send_asset = new StellarSdk.Asset(swapSource.code, swapSource.issuer); dest_asset = StellarSdk.Asset.native(); } else { send_asset = StellarSdk.Asset.native(); dest_asset = new StellarSdk.Asset(swapTarget.code, swapTarget.issuer); } const transaction = new StellarSdk.TransactionBuilder(account, { fee: await server.fetchBaseFee(), networkPassphrase: NETWORK_PASSPHRASE }).addOperation(StellarSdk.Operation.pathPaymentStrictSend({ sendAsset: send_asset, sendAmount: sourceAmount, destination: publicKey, destAsset: dest_asset, destMin: dest_min_str, path: path })).setTimeout(60).build(); transaction.sign(kp); const response = await server.submitTransaction(transaction); const targetAsset = isReverseSwap ? "Pi" : swapTarget.code; const sourceAsset = isReverseSwap ? swapSource.code : "Pi"; showMessage(`兑换成功: ${sourceAmount} ${sourceAsset} -> ${dest_amount} ${targetAsset}`, 'success'); setTimeout(refreshAccountData, 2000); } catch (e) { let error_msg = e.message; if (e.response?.data?.extras?.result_codes?.transaction === "tx_failed") { error_msg = `交易提交失败: ${error_msg}`; } showMessage(error_msg, 'error'); } finally { toggleLoading(false); } });
+document.getElementById("cancel-swap-btn").addEventListener("click", function () { document.getElementById("swap-modal").style.display = "none"; });
+
+document.getElementById("export-mnemonic-btn").addEventListener("click", function () { document.getElementById("export-mnemonic-text").value = mnemonic; document.getElementById("export-modal").style.display = "flex"; });
+document.getElementById("close-export-btn").addEventListener("click", function () { document.getElementById("export-modal").style.display = "none"; document.getElementById("export-mnemonic-text").value = ""; });
+document.getElementById("copy-mnemonic-btn").addEventListener("click", function () { const textArea = document.getElementById("export-mnemonic-text"); textArea.select(); document.execCommand("copy"); showMessage("助记词已复制到剪贴板", 'success'); setTimeout(() => { if (navigator.clipboard) navigator.clipboard.writeText(''); }, 3000); });
+
+document.getElementById("refresh-btn").addEventListener("click", refreshAccountData); document.getElementById("refresh-assets-btn").addEventListener("click", refreshAccountData);
+
+const tabs = document.querySelectorAll(".tab"); tabs.forEach((tab) => { tab.addEventListener("click", function () { tabs.forEach((t) => t.classList.remove("active")); tab.classList.add("active"); document.querySelectorAll(".history, .migrations").forEach((content) => { content.style.display = "none"; }); document.getElementById(tab.dataset.tab).style.display = "block"; }); });
+
+document.getElementById("show-qrcode-btn").addEventListener("click", function () { const qrcodeContainer = document.getElementById("qrcode-container"); qrcodeContainer.style.display = qrcodeContainer.style.display === "none" ? "block" : "none"; });
+
+document.getElementById("prev-history").addEventListener("click", async function () { if (isOfflineMode) { showMessage("⛔ 离线模式：无法加载历史，请连接网络", 'error'); return; } if (!historyCollection.prev) return; toggleLoading(true); try { historyCollection = await historyCollection.prev(); const transaction_records = await processTransactions(historyCollection, publicKey); const transactionLog = document.getElementById("transaction-log"); transactionLog.innerHTML = ""; transaction_records.forEach((tx) => { if (tx && tx.created_at) { const txElem = createTransactionElement(tx); transactionLog.appendChild(txElem); } }); document.getElementById("prev-history").disabled = !historyCollection.prev; document.getElementById("next-history").disabled = !historyCollection.next; } catch (e) { showMessage("加载失败: " + e.message, 'error'); } finally { toggleLoading(false); } });
+document.getElementById("next-history").addEventListener("click", async function () { if (isOfflineMode) { showMessage("⛔ 离线模式：无法加载历史，请连接网络", 'error'); return; } if (!historyCollection.next) return; toggleLoading(true); try { historyCollection = await historyCollection.next(); const transaction_records = await processTransactions(historyCollection, publicKey); const transactionLog = document.getElementById("transaction-log"); transactionLog.innerHTML = ""; transaction_records.forEach((tx) => { if (tx && tx.created_at) { const txElem = createTransactionElement(tx); transactionLog.appendChild(txElem); } }); document.getElementById("prev-history").disabled = !historyCollection.prev; document.getElementById("next-history").disabled = !historyCollection.next; } catch (e) { showMessage("加载失败: " + e.message, 'error'); } finally { toggleLoading(false); } });
+
+document.addEventListener('DOMContentLoaded', async function() {
+  const hasAgreed = localStorage.getItem('disclaimerAgreed');
+  if (!hasAgreed) { document.getElementById("disclaimer-modal").style.display = "flex"; } else { document.getElementById("disclaimer-modal").style.display = "none"; }
+  document.getElementById("agree-btn").addEventListener("click", function() { localStorage.setItem('disclaimerAgreed', 'true'); document.getElementById("disclaimer-modal").style.display = "none"; initApp(); });
+  document.getElementById("disagree-btn").addEventListener("click", function() { alert("您已选择不同意，页面将关闭。"); window.close(); });
+  async function initApp() { const loggedIn = await autoLogin(); if (!loggedIn) { checkNetwork(); } else { checkNetwork(true); } window.addEventListener('online', () => checkNetwork(true)); window.addEventListener('offline', () => updateNetworkStatus(false)); }
+  initApp();
+    // 添加创建钱包按钮事件
+  document.getElementById("create-wallet-btn").addEventListener("click", function () {
+    window.location.href = "create_wallet.html";
+  });
+});
+</script>
+</body>
+</html>
